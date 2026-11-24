@@ -110,7 +110,9 @@ Stop it with Ctrl+C. Deferred or failed local messages are returned to the queue
 GitHub Actions runs tests and a build on pushes and pull requests targeting
 `main`. A successful push to `main` also builds and deploys a Docker container
 on the local RHEL 9 machine using a self-hosted runner. Pull requests never
-deploy.
+deploy. GitHub automatically numbers each workflow run; the Actions list title
+shows that run number (for example, `CI and Docker deploy to RHEL #4`). No Git
+version tag is created.
 
 ### Deploy to a local RHEL 9 machine
 
@@ -127,9 +129,9 @@ connects outward to GitHub and deploys locally.
    sudo systemctl enable --now docker
    ```
 
-   The workflow can install missing Docker packages and start the daemon if the
-   runner has non-interactive `sudo` access. Otherwise, run these commands
-   manually as an administrator.
+   Run these commands once as a RHEL administrator. A GitHub Actions runner
+   should not be given an administrator password; the workflow only checks that
+   Docker is installed and running.
 
 2. Use the same Linux account that runs the self-hosted runner. The runner
    service account needs write access to the app directory and Docker access:
@@ -170,9 +172,8 @@ connects outward to GitHub and deploys locally.
    `/var/www/inbox-mailer`, builds the image on the RHEL machine, and starts the
    app and email worker together in a Docker container. SQLite data, uploaded
    images, and cache are stored outside the container so they survive rebuilds.
-   If Docker packages are missing or the daemon is stopped, the workflow tries
-   to install/start them with non-interactive `sudo`. After a successful push
-   deployment, it creates a unique timestamp tag such as `v20261124.3`.
+   If Docker is unavailable, the workflow prints the administrator command
+   needed to start it; it does not request or store a sudo password.
 
 Manual redeploys are available via **Actions → CI and Docker deploy to RHEL →
 Run workflow** on `main`. Back up `inbox_mailer.db` before deploying updates.
