@@ -57,7 +57,7 @@ jobs:
 
       - name: Build and deploy with Docker Compose
         env:
-          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          DEPLOY_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
         run: |
           set -euo pipefail
           APP_DIR="$HOME/inbox-mailer"
@@ -101,7 +101,7 @@ jobs:
           mkdir -p data uploads cache
           if [ ! -f .env.local ]; then
             umask 077
-            APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+            APP_URL="${DEPLOY_APP_URL:-http://localhost:3000}"
             UNSUBSCRIBE_SECRET="$(openssl rand -hex 32)"
             printf 'NEXT_PUBLIC_APP_URL=%s\nUNSUBSCRIBE_HMAC_SECRET=%s\n' \
               "$APP_URL" "$UNSUBSCRIBE_SECRET" > .env.local
