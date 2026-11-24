@@ -65,6 +65,7 @@ jobs:
           command -v docker >/dev/null || { echo "Install Docker Engine and Compose on RHEL 9 before deploying"; exit 1; }
           command -v dockerd >/dev/null || { echo "Docker Engine daemon is missing; install Docker CE on RHEL 9"; exit 1; }
           docker compose version || { echo "Install the Docker Compose plugin on RHEL 9"; exit 1; }
+          sudo -n systemctl enable --now docker
           if ! docker info >/dev/null 2>&1; then
             echo "::error::Docker daemon is stopped or the runner cannot access its socket."
             echo "As a RHEL administrator, run: sudo systemctl enable --now docker"
