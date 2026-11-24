@@ -65,11 +65,14 @@ jobs:
           command -v docker >/dev/null || { echo "Install Docker Engine and Compose on RHEL 9 before deploying"; exit 1; }
           command -v dockerd >/dev/null || { echo "Docker Engine daemon is missing; install Docker CE on RHEL 9"; exit 1; }
           docker compose version || { echo "Install the Docker Compose plugin on RHEL 9"; exit 1; }
-          sudo -n systemctl enable --now docker
+          if ! systemctl is-active --quiet docker; then
+            if ! sudo -n systemctl enable --now docker 2>/dev/null; then
+              echo "::error::Docker service is stopped. Start it once as a RHEL administrator: sudo systemctl enable --now docker"
+              exit 1
+            fi
+          fi
           if ! docker info >/dev/null 2>&1; then
-            echo "::error::Docker daemon is stopped or the runner cannot access its socket."
-            echo "As a RHEL administrator, run: sudo systemctl enable --now docker"
-            echo "Then add the runner service user to the docker group and restart the runner service."
+            echo "::error::Runner cannot access Docker. Add its service user to the docker group and restart the runner service."
             exit 1
           fi
           test -d "$APP_DIR" && test -w "$APP_DIR" || {
