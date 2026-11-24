@@ -1,0 +1,97 @@
+name: CI and local RHEL deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test worker and application
+        run: npm test
+
+      - name: Check worker runner syntax
+        run: node --check packages/email-worker/src/local-runner.js
+
+      - name: Build application
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+        run: npm run build
+
+  deploy-local:
+    needs: test-and-build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, linux, x64, rhel9]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application for the local server
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+        run: |
+          set -euo pipefail
+          : "${NEXT_PUBLIC_APP_URL:?Set the NEXT_PUBLIC_APP_URL repository variable}"
+          npm run build
+
+      - name: Deploy locally and restart services
+        run: |
+          set -euo pipefail
+          APP_DIR="/var/www/inbox-mailer"
+
+          command -v rsync >/dev/null || { echo "Install rsync on the RHEL 9 machine"; exit 1; }
+          command -v pm2 >/dev/null || { echo "Install PM2 for the runner service user"; exit 1; }
+          test -d "$APP_DIR" && test -w "$APP_DIR" || {
+            echo "$APP_DIR must exist and be writable by the self-hosted runner user"
+            exit 1
+          }
+
+          pm2 stop inbox-mailer-web >/dev/null 2>&1 || true
+          pm2 stop inbox-mailer-worker >/dev/null 2>&1 || true
+
+          rsync -a --delete \
+            --exclude='/.git/' \
+            --exclude='/.github/' \
+            --exclude='/node_modules/' \
+            --exclude='/.env*' \
+            --exclude='*.db*' \
+            --exclude='/.local-queue.json' \
+            --exclude='/.local-db.json' \
+            --exclude='/public/uploads/' \
+            --exclude='/.next/cache/' \
+            "$GITHUB_WORKSPACE/" "$APP_DIR/"
+
+          cd "$APP_DIR"
+          npm ci --omit=dev
+          npm run setup:tables
+          pm2 startOrReload ecosystem.config.cjs --update-env
+          pm2 save
+          curl --fail --retry 5 --retry-delay 2 http://127.0.0.1:3000/api/stats >/dev/null

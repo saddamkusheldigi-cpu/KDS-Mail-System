@@ -1,0 +1,33 @@
+{
+  "name": "inbox-mailer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Production-Ready AWS Serverless Bulk Email System",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "worker:dev": "node packages/email-worker/src/local-runner.js",
+    "worker:deploy": "node packages/email-worker/deploy.js",
+    "setup:tables": "node infra/setup-tables.js",
+    "db:clear": "node infra/clear-db.js",
+    "test": "node test-all.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ses": "^3.540.0",
+    "@aws-sdk/client-sqs": "^3.540.0",
+    "lucide-react": "^0.359.0",
+    "next": "^14.2.3",
+    "nodemailer": "^6.9.13",
+    "papaparse": "^5.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3"
+  }
+}

@@ -1,0 +1,16 @@
+ {
+  "name": "inbox-mailer-worker",
+  "version": "1.0.0",
+  "description": "AWS Lambda SQS Worker for Throttled Bulk Email Dispatch",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/local-runner.js",
+    "deploy": "node deploy.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ses": "^3.540.0",
+    "@aws-sdk/client-sqs": "^3.540.0",
+    "nodemailer": "^6.9.13"
+  }
+}
