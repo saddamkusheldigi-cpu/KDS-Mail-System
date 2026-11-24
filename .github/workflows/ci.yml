@@ -59,10 +59,28 @@ jobs:
           set -euo pipefail
           APP_DIR="/var/www/inbox-mailer"
 
-          command -v rsync >/dev/null || { echo "Install rsync on the RHEL 9 machine"; exit 1; }
-          command -v docker >/dev/null || { echo "Install Docker Engine on the RHEL 9 machine"; exit 1; }
+          if ! command -v rsync >/dev/null || ! command -v curl >/dev/null; then
+            sudo -n dnf install -y rsync curl
+          fi
+          if ! command -v docker >/dev/null || ! command -v dockerd >/dev/null || ! docker compose version >/dev/null 2>&1; then
+            echo "Docker Engine or Compose is missing; installing Docker CE for RHEL."
+            sudo -n dnf install -y dnf-plugins-core
+            sudo -n dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+            sudo -n dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          fi
+          command -v docker >/dev/null || { echo "Docker installation did not provide the docker CLI"; exit 1; }
           docker compose version
-          docker info >/dev/null
+          if ! docker info >/dev/null 2>&1; then
+            echo "Docker CLI found, but the daemon is not available; trying to enable and start docker.service."
+            if ! sudo -n systemctl enable --now docker; then
+              echo "Could not start Docker. Run 'sudo systemctl enable --now docker' on RHEL 9, then retry."
+              exit 1
+            fi
+          fi
+          if ! docker info >/dev/null 2>&1; then
+            echo "Docker is still inaccessible. Add the runner service user to the docker group and restart the runner."
+            exit 1
+          fi
           test -d "$APP_DIR" && test -w "$APP_DIR" || {
             echo "$APP_DIR must exist and be writable by the self-hosted runner user"
             exit 1
@@ -110,3 +128,23 @@ jobs:
           docker compose --env-file .env.local config --quiet
           docker compose --env-file .env.local up -d --build --remove-orphans
           curl --fail --retry 5 --retry-delay 2 http://127.0.0.1:3000/api/stats >/dev/null
+
+  create-version-tag:
+    needs: deploy-local
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out deployed commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create timestamp version tag
+        run: |
+          set -euo pipefail
+          TAG="v$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Created version tag: $TAG"

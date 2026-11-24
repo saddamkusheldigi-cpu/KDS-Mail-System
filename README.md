@@ -127,33 +127,34 @@ connects outward to GitHub and deploys locally.
    sudo systemctl enable --now docker
    ```
 
-   This one-time installation needs `sudo`; the workflow checks for Docker but
-   does not try to install system packages automatically.
+   The workflow can install missing Docker packages and start the daemon if the
+   runner has non-interactive `sudo` access. Otherwise, run these commands
+   manually as an administrator.
 
-2. Create a dedicated deploy account and app directory. The runner must run as
-   `mailer` and be able to access Docker:
+2. Use the same Linux account that runs the self-hosted runner. The runner
+   service account needs write access to the app directory and Docker access:
 
    ```bash
-   sudo useradd --create-home --shell /bin/bash mailer
+   RUNNER_USER="$(id -un)"
    sudo mkdir -p /var/www/inbox-mailer
-   sudo chown -R mailer:mailer /var/www/inbox-mailer
-   sudo usermod -aG docker mailer
+   sudo chown -R "$RUNNER_USER:$RUNNER_USER" /var/www/inbox-mailer
+   sudo usermod -aG docker "$RUNNER_USER"
    ```
 
 3. In the GitHub repository, open **Settings → Actions → Runners → New
    self-hosted runner**. Follow GitHub's displayed Linux x64 download steps on
-   the RHEL machine as the `mailer` user. Use the short-lived token shown there
-   to configure the runner with the additional label `rhel9`, then install and
-   start its service as `mailer`. Restart the runner service after adding the
-   Docker group so the service receives the new permission. The workflow
-   requires labels `self-hosted`, `linux`, `x64`, and `rhel9`.
+   the RHEL machine as the runner service account. Use the short-lived token
+   shown there to configure the runner with the additional label `rhel9`, then
+   install and start its service as that same account. Restart the runner
+   service after adding the Docker group so it receives the new permission.
+   The workflow requires labels `self-hosted`, `linux`, `x64`, and `rhel9`.
 
 4. Create `/var/www/inbox-mailer/.env.local` on the RHEL machine. Add the real
    app URL, unsubscribe secret, SES/SQS or SMTP settings there, then restrict
    access:
 
    ```bash
-   sudo chown mailer:mailer /var/www/inbox-mailer/.env.local
+   sudo chown "$(id -un):$(id -gn)" /var/www/inbox-mailer/.env.local
    sudo chmod 600 /var/www/inbox-mailer/.env.local
    ```
 
@@ -169,6 +170,9 @@ connects outward to GitHub and deploys locally.
    `/var/www/inbox-mailer`, builds the image on the RHEL machine, and starts the
    app and email worker together in a Docker container. SQLite data, uploaded
    images, and cache are stored outside the container so they survive rebuilds.
+   If Docker packages are missing or the daemon is stopped, the workflow tries
+   to install/start them with non-interactive `sudo`. After a successful push
+   deployment, it creates a unique timestamp tag such as `v20261124.3`.
 
 Manual redeploys are available via **Actions → CI and Docker deploy to RHEL →
 Run workflow** on `main`. Back up `inbox_mailer.db` before deploying updates.
