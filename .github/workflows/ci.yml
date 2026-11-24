@@ -56,9 +56,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build and deploy with Docker Compose
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
         run: |
           set -euo pipefail
-          APP_DIR="/var/www/inbox-mailer"
+          APP_DIR="$HOME/inbox-mailer"
 
           command -v rsync >/dev/null || { echo "Install rsync on RHEL 9 before deploying"; exit 1; }
           command -v curl >/dev/null || { echo "Install curl on RHEL 9 before deploying"; exit 1; }
@@ -75,12 +77,9 @@ jobs:
             echo "::error::Runner cannot access Docker. Add its service user to the docker group and restart the runner service."
             exit 1
           fi
-          test -d "$APP_DIR" && test -w "$APP_DIR" || {
-            echo "$APP_DIR must exist and be writable by the self-hosted runner user"
-            exit 1
-          }
-          test -f "$APP_DIR/.env.local" || {
-            echo "Create $APP_DIR/.env.local with production settings before deploying"
+          mkdir -p "$APP_DIR"
+          test -w "$APP_DIR" || {
+            echo "$APP_DIR is not writable by the self-hosted runner user"
             exit 1
           }
 
@@ -100,6 +99,13 @@ jobs:
 
           cd "$APP_DIR"
           mkdir -p data uploads cache
+          if [ ! -f .env.local ]; then
+            umask 077
+            APP_URL="${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+            UNSUBSCRIBE_SECRET="$(openssl rand -hex 32)"
+            printf 'NEXT_PUBLIC_APP_URL=%s\nUNSUBSCRIBE_HMAC_SECRET=%s\n' \
+              "$APP_URL" "$UNSUBSCRIBE_SECRET" > .env.local
+          fi
           if command -v pm2 >/dev/null; then
             pm2 delete inbox-mailer-web >/dev/null 2>&1 || true
             pm2 delete inbox-mailer-worker >/dev/null 2>&1 || true

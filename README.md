@@ -133,13 +133,12 @@ connects outward to GitHub and deploys locally.
    should not be given an administrator password; the workflow only checks that
    Docker is installed and running.
 
-2. Use the same Linux account that runs the self-hosted runner. The runner
-   service account needs write access to the app directory and Docker access:
+2. Use the same Linux account that runs the self-hosted runner. The workflow
+   deploys under that account's home directory (`~/inbox-mailer`) and creates
+   the directory automatically. The runner needs Docker access:
 
    ```bash
    RUNNER_USER="$(id -un)"
-   sudo mkdir -p /var/www/inbox-mailer
-   sudo chown -R "$RUNNER_USER:$RUNNER_USER" /var/www/inbox-mailer
    sudo usermod -aG docker "$RUNNER_USER"
    ```
 
@@ -151,25 +150,25 @@ connects outward to GitHub and deploys locally.
    service after adding the Docker group so it receives the new permission.
    The workflow requires labels `self-hosted`, `linux`, `x64`, and `rhel9`.
 
-4. Create `/var/www/inbox-mailer/.env.local` on the RHEL machine. Add the real
-   app URL, unsubscribe secret, SES/SQS or SMTP settings there, then restrict
-   access:
+4. On its first deployment, the workflow creates `~/inbox-mailer/.env.local`
+   with `NEXT_PUBLIC_APP_URL` and a private random unsubscribe secret. Set the
+   repository Actions variable `NEXT_PUBLIC_APP_URL` to the real app URL; if
+   it is not set, the app defaults to `http://localhost:3000`. Add any
+   production SES/SQS or SMTP settings to `.env.local` on the RHEL machine and
+   restrict access:
 
    ```bash
-   sudo chown "$(id -un):$(id -gn)" /var/www/inbox-mailer/.env.local
-   sudo chmod 600 /var/www/inbox-mailer/.env.local
+   chmod 600 "$HOME/inbox-mailer/.env.local"
    ```
 
    Never commit `.env.local` or put production credentials in GitHub variables.
    The workflow preserves this file, SQLite data, the local queue, uploaded
    images, and the Next.js cache in host folders.
 
-5. Add the repository Actions variable `NEXT_PUBLIC_APP_URL` with the app's
-   public URL. Put the same value in the machine's `.env.local`. No EC2 SSH
-   secrets are needed.
+5. No EC2 SSH secrets or administrator password are needed for deployments.
 
 6. On successful pushes to `main`, Actions syncs the code into
-   `/var/www/inbox-mailer`, builds the image on the RHEL machine, and starts the
+   `~/inbox-mailer`, builds the image on the RHEL machine, and starts the
    app and email worker together in a Docker container. SQLite data, uploaded
    images, and cache are stored outside the container so they survive rebuilds.
    If Docker is unavailable, the workflow prints the administrator command
