@@ -5,7 +5,10 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "../../../");
-const LOCAL_QUEUE_FILE = path.join(rootDir, ".local-queue.json");
+const LOCAL_QUEUE_FILE = path.join(
+  process.env.DATA_DIR || rootDir,
+  ".local-queue.json"
+);
 
 // Helper to load env files in standalone worker script
 function loadEnvFile(filePath) {

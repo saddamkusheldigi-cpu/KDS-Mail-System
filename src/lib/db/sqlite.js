@@ -2,7 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import path from "path";
 import fs from "fs";
 
-const DB_FILE = path.join(process.cwd(), "inbox_mailer.db");
+const DB_DIR = process.env.DATA_DIR || process.cwd();
+const DB_FILE = path.join(DB_DIR, "inbox_mailer.db");
 
 // Singleton connection instance
 let dbInstance = null;
@@ -10,6 +11,7 @@ let dbInstance = null;
 export function getDb() {
   if (dbInstance) return dbInstance;
 
+  fs.mkdirSync(DB_DIR, { recursive: true });
   const isNew = !fs.existsSync(DB_FILE);
   dbInstance = new DatabaseSync(DB_FILE);
 

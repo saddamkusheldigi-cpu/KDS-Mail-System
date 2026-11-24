@@ -1,0 +1,32 @@
+services:
+  inbox-mailer:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?Set NEXT_PUBLIC_APP_URL in .env.local}
+    image: inbox-mailer:local
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /app/data
+      HOME: /tmp
+      PM2_HOME: /tmp/pm2
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/public/uploads
+      - ./cache:/app/.next/cache
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/stats').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

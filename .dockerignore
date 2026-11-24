@@ -1,0 +1,13 @@
+.git
+.github
+.next
+node_modules
+.env
+.env.*
+*.db
+*.db-*
+.local-queue.json
+.local-db.json
+data
+uploads
+public/uploads

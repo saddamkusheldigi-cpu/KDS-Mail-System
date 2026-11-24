@@ -33,7 +33,10 @@ if (isAwsConfigured()) {
 
 export { sqsClient };
 
-const LOCAL_QUEUE_FILE = path.join(process.cwd(), ".local-queue.json");
+const LOCAL_QUEUE_FILE = path.join(
+  process.env.DATA_DIR || process.cwd(),
+  ".local-queue.json"
+);
 
 function appendToLocalQueue(messages) {
   let existing = [];

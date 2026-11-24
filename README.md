@@ -108,8 +108,9 @@ The runner polls AWS SQS when `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
 Stop it with Ctrl+C. Deferred or failed local messages are returned to the queue.
 
 GitHub Actions runs tests and a build on pushes and pull requests targeting
-`main`. A successful push to `main` also deploys to the configured local RHEL 9
-machine using a self-hosted GitHub Actions runner. Pull requests never deploy.
+`main`. A successful push to `main` also builds and deploys a Docker container
+on the local RHEL 9 machine using a self-hosted runner. Pull requests never
+deploy.
 
 ### Deploy to a local RHEL 9 machine
 
@@ -117,30 +118,35 @@ The RHEL 9 machine must be x86_64 and have outbound HTTPS access to GitHub. It
 does not need to be reachable from the public internet; the self-hosted runner
 connects outward to GitHub and deploys locally.
 
-1. Install Node.js 24, Git, rsync, curl, and PM2:
+1. Install Docker Engine, the Compose plugin, Git, rsync, and curl:
 
    ```bash
-   sudo dnf install -y git rsync curl tar gzip
-   curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
-   sudo dnf install -y nodejs
-   sudo npm install -g pm2
+   sudo dnf install -y dnf-plugins-core git rsync curl
+   sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+   sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+   sudo systemctl enable --now docker
    ```
 
-2. Create a dedicated deploy account and application directory. The runner and
-   PM2 services should use this same account:
+   This one-time installation needs `sudo`; the workflow checks for Docker but
+   does not try to install system packages automatically.
+
+2. Create a dedicated deploy account and app directory. The runner must run as
+   `mailer` and be able to access Docker:
 
    ```bash
    sudo useradd --create-home --shell /bin/bash mailer
    sudo mkdir -p /var/www/inbox-mailer
    sudo chown -R mailer:mailer /var/www/inbox-mailer
+   sudo usermod -aG docker mailer
    ```
 
 3. In the GitHub repository, open **Settings → Actions → Runners → New
    self-hosted runner**. Follow GitHub's displayed Linux x64 download steps on
    the RHEL machine as the `mailer` user. Use the short-lived token shown there
    to configure the runner with the additional label `rhel9`, then install and
-   start its service as `mailer`. The workflow requires labels `self-hosted`,
-   `linux`, `x64`, and `rhel9`.
+   start its service as `mailer`. Restart the runner service after adding the
+   Docker group so the service receives the new permission. The workflow
+   requires labels `self-hosted`, `linux`, `x64`, and `rhel9`.
 
 4. Create `/var/www/inbox-mailer/.env.local` on the RHEL machine. Add the real
    app URL, unsubscribe secret, SES/SQS or SMTP settings there, then restrict
@@ -152,24 +158,19 @@ connects outward to GitHub and deploys locally.
    ```
 
    Never commit `.env.local` or put production credentials in GitHub variables.
-   The workflow preserves this file, the SQLite database, the local queue, and
-   uploaded images.
+   The workflow preserves this file, SQLite data, the local queue, uploaded
+   images, and the Next.js cache in host folders.
 
 5. Add the repository Actions variable `NEXT_PUBLIC_APP_URL` with the app's
-   public URL. No EC2 SSH secrets are needed.
+   public URL. Put the same value in the machine's `.env.local`. No EC2 SSH
+   secrets are needed.
 
-6. Configure PM2 to start at boot for the `mailer` user:
+6. On successful pushes to `main`, Actions syncs the code into
+   `/var/www/inbox-mailer`, builds the image on the RHEL machine, and starts the
+   app and email worker together in a Docker container. SQLite data, uploaded
+   images, and cache are stored outside the container so they survive rebuilds.
 
-   ```bash
-   sudo env PATH=/usr/bin:/usr/local/bin pm2 startup systemd -u mailer --hp /home/mailer
-   ```
-
-   On successful pushes to `main`, Actions checks out the code on the RHEL machine, builds it there,
-   syncs it into `/var/www/inbox-mailer`, installs production dependencies,
-   initializes SQLite tables, reloads the web app and email worker, and checks
-   `/api/stats`.
-
-Manual redeploys are available via **Actions → CI and local RHEL deploy →
+Manual redeploys are available via **Actions → CI and Docker deploy to RHEL →
 Run workflow** on `main`. Back up `inbox_mailer.db` before deploying updates.
 The dashboard and APIs currently have no login; keep the service on a trusted
 network or add authentication before exposing it publicly.

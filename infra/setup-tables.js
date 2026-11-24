@@ -12,4 +12,5 @@ try {
   console.log("\n🎉 Database is 100% ready in inbox_mailer.db with zero cloud cost!");
 } catch (err) {
   console.error("❌ Database initialization error:", err.message);
+  process.exitCode = 1;
 }

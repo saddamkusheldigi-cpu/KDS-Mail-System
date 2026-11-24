@@ -25,6 +25,8 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.local-queue.json
+.local-db.json
 
 # vercel & amplify
 .vercel
@@ -39,3 +41,9 @@ packages/email-worker/function.zip
 *.db-wal
 *.db-shm
 *.db-journal
+
+# Local Docker runtime data and uploads
+/data/
+/uploads/
+/cache/
+/public/uploads/
